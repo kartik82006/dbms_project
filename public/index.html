@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parking Entry</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --bg-soft: #111a2b;
+      --card: #121d32;
+      --text: #e5eefc;
+      --muted: #9cafc8;
+      --accent: #2dd4bf;
+      --accent-2: #38bdf8;
+      --danger: #f87171;
+      --ok: #4ade80;
+      --border: #23324a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 20%, #15223d 0%, #0b1220 45%, #080d16 100%);
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 22px 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    h1 {
+      margin: 2px 0;
+      font-size: 1.7rem;
+      color: #d6fff9;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .layout {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1.2fr 1fr;
+    }
+
+    @media (max-width: 920px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 10px 24px rgba(3, 7, 16, 0.45);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      color: #c6f7f0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.84rem;
+      margin-bottom: 4px;
+      color: var(--muted);
+    }
+
+    input, select, button {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2d3f5f;
+      padding: 9px 10px;
+      font-size: 0.94rem;
+      color: var(--text);
+      background: #0d1627;
+    }
+
+    input, select {
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #48d1cc;
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.16);
+    }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #04131f;
+      border: none;
+      font-weight: 600;
+    }
+
+    button:hover { filter: brightness(1.05); }
+
+    .msg {
+      margin-top: 8px;
+      font-size: 0.88rem;
+      min-height: 20px;
+    }
+
+    .ok { color: var(--ok); }
+    .err { color: var(--danger); }
+
+    .match-list {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 8px;
+      background: #0d1627;
+    }
+
+    .match-item {
+      width: 100%;
+      text-align: left;
+      border: none;
+      border-bottom: 1px solid #1f2f4a;
+      padding: 10px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.86rem;
+    }
+
+    .match-item:last-child {
+      border-bottom: none;
+    }
+
+    .match-item:hover {
+      background: #11213b;
+    }
+
+    .dim {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: transparent;
+    }
+
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #1d2b44;
+    }
+
+    th {
+      color: #8fb7dc;
+      background: #101c30;
+      position: sticky;
+      top: 0;
+    }
+
+    .table-wrap {
+      max-height: 280px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section>
+      <h1>Parking Entry Console</h1>
+      <p class="subtitle">Single form flow. Vehicle number autocomplete suggests previous records while typing.</p>
+    </section>
+
+    <section class="layout">
+      <article class="card">
+        <h2>Vehicle Entry Form</h2>
+        <label for="vehicleNumber">Vehicle Number</label>
+        <input id="vehicleNumber" placeholder="TN01AB1234" />
+
+        <label for="fullName">Full Name</label>
+        <input id="fullName" placeholder="Rahul Kumar" />
+
+        <label for="phoneNumber">Phone Number</label>
+        <input id="phoneNumber" placeholder="9876500011" />
+
+        <label for="vehicleType">Vehicle Type</label>
+        <select id="vehicleType">
+          <option value="car">car</option>
+          <option value="bike">bike</option>
+        </select>
+
+        <button id="parkBtn">Park Vehicle</button>
+        <div id="parkMsg" class="msg"></div>
+
+        <div id="matchWrap" class="match-list" style="display:none"></div>
+      </article>
+
+      <article class="card">
+        <h2>Active Tickets</h2>
+        <p class="dim">Use ticket ID for exit payment.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Vehicle</th><th>Owner</th><th>Slot</th><th>Entry Time</th></tr></thead>
+            <tbody id="ticketsBody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:12px">
+          <label for="exitTicket">Exit by Ticket ID</label>
+          <input id="exitTicket" type="number" placeholder="1" />
+          <button id="exitBtn">Exit Vehicle</button>
+          <div id="exitMsg" class="msg"></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Slots</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Slot</th><th>Type</th><th>Occupied</th></tr></thead>
+          <tbody id="slotsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Payments</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Ticket</th><th>Vehicle</th><th>Entry Time</th><th>Exit Time</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody id="paymentsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let latestVehicles = [];
+    let selectedSuggestionIndex = -1;
+
+    async function api(path, options) {
+      const response = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function setMessage(id, text, isError) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'msg ' + (isError ? 'err' : 'ok');
+    }
+
+    async function loadSlots() {
+      const rows = await api('/api/slots');
+      document.getElementById('slotsBody').innerHTML = rows
+        .map((r) => `<tr><td>${r.id}</td><td>${r.slot_number}</td><td>${r.vehicle_type}</td><td>${r.is_occupied ? 'Yes' : 'No'}</td></tr>`)
+        .join('');
+    }
+
+    async function loadActiveTickets() {
+      const rows = await api('/api/tickets/active');
+      document.getElementById('ticketsBody').innerHTML = rows
+        .map((r) => `<tr><td>${r.id}</td><td>${r.vehicle_number}</td><td>${r.owner_name || '-'}</td><td>${r.slot_number}</td><td>${new Date(r.entry_time).toLocaleString()}</td></tr>`)
+        .join('');
+    }
+
+    async function loadPayments() {
+      const rows = await api('/api/payments');
+      document.getElementById('paymentsBody').innerHTML = rows
+        .map((r) => `<tr><td>${r.id}</td><td>${r.ticket_id}</td><td>${r.vehicle_number}</td><td>${r.entry_time ? new Date(r.entry_time).toLocaleString() : '-'}</td><td>${r.exit_time ? new Date(r.exit_time).toLocaleString() : '-'}</td><td>${r.amount}</td><td>${r.payment_status}</td></tr>`)
+        .join('');
+    }
+
+    async function refreshAll() {
+      try {
+        await Promise.all([loadSlots(), loadActiveTickets(), loadPayments()]);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    function renderVehicleMatches(vehicles) {
+      const wrap = document.getElementById('matchWrap');
+
+      if (!vehicles.length) {
+        wrap.style.display = 'none';
+        wrap.innerHTML = '';
+        selectedSuggestionIndex = -1;
+        return;
+      }
+
+      wrap.style.display = 'block';
+      wrap.innerHTML = vehicles.map((vehicle, index) => {
+        const ownerText = vehicle.fullName
+          ? `${vehicle.fullName} • ${vehicle.phoneNumber}`
+          : 'Owner not linked';
+
+        return `<button class="match-item" data-index="${index}" type="button">${vehicle.vehicleNumber} (${vehicle.vehicleType})<br><span class="dim">${ownerText}</span></button>`;
+      }).join('');
+
+      wrap.querySelectorAll('.match-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const index = Number(btn.getAttribute('data-index'));
+          applyVehicleSuggestion(index);
+        });
+      });
+
+      selectedSuggestionIndex = vehicles.length > 0 ? 0 : -1;
+      highlightSuggestion();
+    }
+
+    function highlightSuggestion() {
+      const items = document.querySelectorAll('.match-item');
+      items.forEach((item, index) => {
+        item.style.background = index === selectedSuggestionIndex ? '#163051' : 'transparent';
+      });
+    }
+
+    function applyVehicleSuggestion(index) {
+      const selected = latestVehicles[index];
+      const wrap = document.getElementById('matchWrap');
+
+      if (!selected) {
+        return;
+      }
+
+      document.getElementById('vehicleNumber').value = selected.vehicleNumber;
+      document.getElementById('vehicleType').value = selected.vehicleType;
+      document.getElementById('fullName').value = selected.fullName || '';
+      document.getElementById('phoneNumber').value = selected.phoneNumber || '';
+
+      selectedSuggestionIndex = index;
+      wrap.style.display = 'none';
+    }
+
+    async function lookupVehicles() {
+      const query = document.getElementById('vehicleNumber').value.trim();
+
+      if (query.length < 3) {
+        renderVehicleMatches([]);
+        return;
+      }
+
+      try {
+        const data = await api('/api/vehicles/search?q=' + encodeURIComponent(query));
+        latestVehicles = data.vehicles || [];
+        renderVehicleMatches(latestVehicles);
+      } catch {
+        renderVehicleMatches([]);
+      }
+    }
+
+    async function submitParkingEntry() {
+      try {
+        const fullName = document.getElementById('fullName').value.trim();
+        const phoneNumber = document.getElementById('phoneNumber').value.trim();
+        const vehicleNumber = document.getElementById('vehicleNumber').value.trim();
+        const vehicleType = document.getElementById('vehicleType').value;
+
+        if (!vehicleNumber) {
+          setMessage('parkMsg', 'vehicleNumber is required', true);
+          return;
+        }
+
+        if ((!fullName || !phoneNumber) && latestVehicles.length === 0) {
+          setMessage('parkMsg', 'For new user, full name and phone number are required', true);
+          return;
+        }
+
+        const data = await api('/api/parking/entry', {
+          method: 'POST',
+          body: JSON.stringify({ fullName, phoneNumber, vehicleNumber, vehicleType }),
+        });
+
+        setMessage('parkMsg', `Parked at ${data.slot}, ticket ${data.ticket.id}`, false);
+        document.getElementById('matchWrap').style.display = 'none';
+        latestVehicles = [];
+        selectedSuggestionIndex = -1;
+        refreshAll();
+      } catch (error) {
+        setMessage('parkMsg', error.message, true);
+      }
+    }
+
+    document.getElementById('parkBtn').addEventListener('click', submitParkingEntry);
+
+    document.getElementById('exitBtn').addEventListener('click', async () => {
+      try {
+        const ticketId = document.getElementById('exitTicket').value.trim();
+        const data = await api('/api/exit/' + ticketId, { method: 'POST' });
+        setMessage('exitMsg', `Exited. Fee: Rs ${data.fee}`, false);
+        refreshAll();
+      } catch (error) {
+        setMessage('exitMsg', error.message, true);
+      }
+    });
+
+    document.getElementById('vehicleNumber').addEventListener('input', lookupVehicles);
+    document.getElementById('vehicleNumber').addEventListener('keydown', async (event) => {
+      if (event.key === 'ArrowDown' && latestVehicles.length > 0) {
+        event.preventDefault();
+        selectedSuggestionIndex = (selectedSuggestionIndex + 1) % latestVehicles.length;
+        highlightSuggestion();
+        return;
+      }
+
+      if (event.key === 'ArrowUp' && latestVehicles.length > 0) {
+        event.preventDefault();
+        selectedSuggestionIndex = selectedSuggestionIndex <= 0
+          ? latestVehicles.length - 1
+          : selectedSuggestionIndex - 1;
+        highlightSuggestion();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+
+        if (latestVehicles.length > 0) {
+          const index = selectedSuggestionIndex >= 0 ? selectedSuggestionIndex : 0;
+          applyVehicleSuggestion(index);
+        }
+
+        await submitParkingEntry();
+      }
+    });
+
+    document.getElementById('phoneNumber').addEventListener('keydown', async (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        await submitParkingEntry();
+      }
+    });
+
+    document.getElementById('fullName').addEventListener('keydown', async (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        await submitParkingEntry();
+      }
+    });
+
+    refreshAll();
+  </script>
+</body>
+</html>
