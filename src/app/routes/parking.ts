@@ -428,83 +428,119 @@ export function registerParkingRoutes(app: Express): void {
 
     app.post('/api/exit/:ticketId', async (req, res) => {
         const ticketId = Number(req.params.ticketId);
+        const paymentMethod = String(req.body?.paymentMethod ?? 'cash').trim().toLowerCase();
 
         if (!Number.isInteger(ticketId) || ticketId <= 0) {
             res.status(400).json({ error: 'ticketId must be a positive integer' });
             return;
         }
 
-        const client = await pool.connect();
+        if (!['cash', 'upi', 'card'].includes(paymentMethod)) {
+            res.status(400).json({ error: "paymentMethod must be 'cash', 'upi', or 'card'" });
+            return;
+        }
 
         try {
-            await client.query('BEGIN');
-
-            const ticketResult = await client.query<{
-                id: number;
-                vehicle_type: 'bike' | 'car';
-                slot_id: number;
-                entry_time: string;
-                rate_per_hour: string | null;
-            }>(
-                `SELECT id, vehicle_type, slot_id, entry_time, rate_per_hour
+            const ticketCheckResult = await pool.query<{ id: number; status: 'active' | 'closed' }>(
+                `SELECT id, status
                  FROM parking_tickets
-                 WHERE id = $1 AND status = 'active'
-                 FOR UPDATE`,
+                 WHERE id = $1`,
                 [ticketId]
             );
 
-            const ticket = ticketResult.rows[0];
+            const existingTicket = ticketCheckResult.rows[0];
 
-            if (!ticket) {
-                await client.query('ROLLBACK');
-                res.status(404).json({ error: 'Active ticket not found' });
+            if (!existingTicket) {
+                res.status(404).json({ error: 'Ticket ID not found' });
                 return;
             }
 
-            const entryTime = new Date(ticket.entry_time);
-            const now = new Date();
-            const totalHours = Math.max(1, Math.ceil((now.getTime() - entryTime.getTime()) / (1000 * 60 * 60)));
-            const hourlyRate = Number(ticket.rate_per_hour ?? (ticket.vehicle_type === 'bike' ? 20 : 40));
-            const fee = totalHours * hourlyRate;
+            if (existingTicket.status !== 'active') {
+                res.status(409).json({ error: 'Ticket is already closed' });
+                return;
+            }
 
-            await client.query(
-                `UPDATE parking_tickets
-                 SET exit_time = NOW(), fee = $1, status = 'closed'
-                 WHERE id = $2`,
-                [fee, ticket.id]
+            await pool.query('CALL close_parking_ticket($1, $2)', [ticketId, paymentMethod]);
+
+            const result = await pool.query<{
+                ticket_id: number;
+                vehicle_number: string;
+                entry_time: string;
+                exit_time: string | null;
+                fee: string | null;
+                payment_status: string | null;
+            }>(
+                `SELECT t.id AS ticket_id,
+                        t.vehicle_number,
+                        t.entry_time,
+                        t.exit_time,
+                        t.fee,
+                        p.payment_status
+                 FROM parking_tickets t
+                 LEFT JOIN payments p ON p.ticket_id = t.id
+                 WHERE t.id = $1`,
+                [ticketId]
             );
 
-            await client.query('UPDATE parking_slots SET is_occupied = FALSE WHERE id = $1', [ticket.slot_id]);
+            const ticket = result.rows[0];
 
-            await client.query(
-                `INSERT INTO payments (ticket_id, amount, payment_method, payment_status)
-                 VALUES ($1, $2, $3, 'paid')
-                 ON CONFLICT (ticket_id)
-                 DO UPDATE SET amount = EXCLUDED.amount, payment_method = EXCLUDED.payment_method, payment_status = EXCLUDED.payment_status, paid_at = NOW()`,
-                [ticket.id, fee, 'cash']
-            );
-
-            await client.query(
-                `INSERT INTO parking_activity_logs (ticket_id, action, details)
-                 VALUES ($1, 'EXIT', $2::jsonb)`,
-                [ticket.id, JSON.stringify({ hoursCharged: totalHours, fee })]
-            );
-
-            await client.query('COMMIT');
+            if (!ticket) {
+                res.status(404).json({ error: 'Ticket not found after closing' });
+                return;
+            }
 
             res.status(200).json({
                 message: 'Vehicle exited successfully',
-                ticketId: ticket.id,
-                hoursCharged: totalHours,
-                fee,
-                paymentStatus: 'paid',
+                ticketId: ticket.ticket_id,
+                vehicleNumber: ticket.vehicle_number,
+                entryTime: ticket.entry_time,
+                exitTime: ticket.exit_time,
+                fee: ticket.fee,
+                paymentStatus: ticket.payment_status,
             });
         } catch (error) {
-            await client.query('ROLLBACK');
             throw error;
-        } finally {
-            client.release();
         }
+    });
+
+    app.get('/api/fees/preview', async (req, res) => {
+        const vehicleType = String(req.query.vehicleType ?? '').trim().toLowerCase();
+        const entryTime = String(req.query.entryTime ?? '').trim();
+        const exitTime = String(req.query.exitTime ?? '').trim();
+
+        if (vehicleType !== 'bike' && vehicleType !== 'car') {
+            res.status(400).json({ error: "vehicleType must be 'bike' or 'car'" });
+            return;
+        }
+
+        if (!entryTime || !exitTime) {
+            res.status(400).json({ error: 'entryTime and exitTime are required' });
+            return;
+        }
+
+        const result = await pool.query<{ fee: string }>(
+            `SELECT calculate_parking_fee($1, $2::timestamptz, $3::timestamptz) AS fee`,
+            [vehicleType, entryTime, exitTime]
+        );
+
+        res.status(200).json({ fee: result.rows[0]?.fee ?? '0.00' });
+    });
+
+    app.get('/api/reports/recent', async (req, res) => {
+        const limit = Number(req.query.limit ?? 10);
+
+        if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+            res.status(400).json({ error: 'limit must be an integer between 1 and 100' });
+            return;
+        }
+
+        const result = await pool.query(
+            `SELECT *
+             FROM get_recent_ticket_summary($1)` ,
+            [limit]
+        );
+
+        res.status(200).json(result.rows);
     });
 
     app.get('/api/payments', async (_req, res) => {
